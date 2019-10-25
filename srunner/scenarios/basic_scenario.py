@@ -87,6 +87,7 @@ class BasicScenario(object):
                                                          autopilot=actor.autopilot,
                                                          random_location=actor.random_location,
                                                          color=actor.color)
+            py_trees.blackboard.Blackboard().set("{}_speed".format(new_actor.id), actor.initial_speed)
             if new_actor is None:
                 raise Exception("Error: Unable to add actor {} at {}".format(actor.model, actor.transform))
 

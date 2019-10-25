@@ -25,6 +25,7 @@ import inspect
 import os
 import time
 import pkg_resources
+from py_trees.blackboard import Blackboard
 
 import carla
 
@@ -204,11 +205,13 @@ class ScenarioRunner(object):
 
         if not wait_for_ego_vehicles:
             for vehicle in ego_vehicles:
-                self.ego_vehicles.append(CarlaActorPool.setup_actor(vehicle.model,
+                ego_vehicle = CarlaActorPool.setup_actor(vehicle.model,
                                                                     vehicle.transform,
                                                                     vehicle.rolename,
                                                                     True,
-                                                                    color=vehicle.color))
+                                                                    color=vehicle.color)
+                self.ego_vehicles.append(ego_vehicle)     
+                Blackboard().set("{}_speed".format(ego_vehicle.id), vehicle.initial_speed)
         else:
             ego_vehicle_missing = True
             while ego_vehicle_missing:
@@ -325,24 +328,24 @@ class ScenarioRunner(object):
         # Prepare scenario
         print("Preparing scenario: " + config.name)
         try:
-        self._prepare_ego_vehicles(config.ego_vehicles, args.waitForEgo)
-        if args.openscenario:
-            scenario = OpenScenario(world=self.world,
-                                    ego_vehicles=self.ego_vehicles,
-                                    config=config,
-                                    config_file=args.openscenario,
-                                    timeout=100000)
-        elif args.route:
-            scenario = RouteScenario(world=self.world,
-                                     config=config,
-                                 debug_mode=args.debug)
-        else:
-            scenario_class = self._get_scenario_class_or_fail(config.type)
-            scenario = scenario_class(self.world,
-                                      self.ego_vehicles,
-                                      config,
-                                      args.randomize,
-                                      args.debug)
+            self._prepare_ego_vehicles(config.ego_vehicles, args.waitForEgo)
+            if args.openscenario:
+                scenario = OpenScenario(world=self.world,
+                                        ego_vehicles=self.ego_vehicles,
+                                        config=config,
+                                        config_file=args.openscenario,
+                                        timeout=100000)
+            elif args.route:
+                scenario = RouteScenario(world=self.world,
+                                        config=config,
+                                    debug_mode=args.debug)
+            else:
+                scenario_class = self._get_scenario_class_or_fail(config.type)
+                scenario = scenario_class(self.world,
+                                        self.ego_vehicles,
+                                        config,
+                                        args.randomize,
+                                        args.debug)
         except Exception as exception:
            print("The scenario cannot be loaded")
            if args.debug:

@@ -26,6 +26,7 @@ class ActorConfigurationData(object):
         self.random_location = random
         self.amount = amount
         self.color = color
+        self.initial_speed = 0
 
 
 class ActorConfiguration(ActorConfigurationData):

@@ -14,7 +14,7 @@ from __future__ import print_function
 import math
 import os
 import xml.etree.ElementTree as ET
-
+from py_trees.blackboard import Blackboard
 import xmlschema
 
 import carla
@@ -173,6 +173,7 @@ class OpenScenarioConfiguration(ScenarioConfiguration):
 
                     new_actor = ActorConfigurationData(model, carla.Transform(), rolename, color=color)
                     new_actor.transform = self._get_actor_transform(rolename)
+                    new_actor.initial_speed = self._get_actor_initial_speed(new_actor, rolename)
 
                     if ego_vehicle:
                         self.ego_vehicles.append(new_actor)
@@ -217,6 +218,20 @@ class OpenScenarioConfiguration(ScenarioConfiguration):
             print("Warning: The actor '{}' was not assigned an initial position. Using (0,0,0)".format(actor_name))
 
         return actor_transform
+
+    def _get_actor_initial_speed(self, actor, rolename):
+        actor_found = False
+        target_speed = 0
+        for private_action in self.init.iter("Private"):
+            if private_action.attrib.get('object', None) == rolename:
+                for position in private_action.iter('Longitudinal'):
+                    if position.find('Speed') is not None:
+                        target_speed = float(position.find('Speed').find("Target").find("Absolute").attrib.get('value', 0))
+                        actor_found = True
+
+        if not actor_found:
+            print("Warning: The actor '{}' was not assigned an initial speed. Using 0".format(rolename))
+        return target_speed
 
     def _validate_result(self):
         """
