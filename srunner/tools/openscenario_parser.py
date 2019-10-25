@@ -336,7 +336,7 @@ class OpenScenarioParser(object):
                 if private_action.find('LaneChange') is not None:
                     lat_maneuver = private_action.find('LaneChange')
                     target_lane_rel = float(lat_maneuver.find("Target").find("Relative").attrib.get('value', 0))
-                    distance = float(lat_maneuver.find("Dynamics").attrib.get('distance', float("inf")))
+                    distance = float(lat_maneuver.find("Dynamics").attrib.get('distance', 20))
                     atomic = LaneChange(actor,
                                         5.0,
                                         direction="left" if target_lane_rel < 0 else "right",

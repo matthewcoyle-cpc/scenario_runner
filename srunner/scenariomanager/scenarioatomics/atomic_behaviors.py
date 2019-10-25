@@ -279,23 +279,8 @@ class KeepVelocity(AtomicBehavior):
         For walkers: simply apply the given self._control
         """
         new_status = py_trees.common.Status.RUNNING
-
-        if self._type == 'vehicle':
-            if CarlaDataProvider.get_velocity(self._actor) < self._target_velocity:
-                self._control.throttle = 1.0
-            else:
-                self._control.throttle = 0.0
-        self._actor.apply_control(self._control)
-
-        new_location = CarlaDataProvider.get_location(self._actor)
-        self._distance += calculate_distance(self._location, new_location)
-        self._location = new_location
-
-        if self._distance > self._target_distance:
-            new_status = py_trees.common.Status.SUCCESS
-
-        if GameTime.get_time() - self._start_time > self._duration:
-            new_status = py_trees.common.Status.SUCCESS
+        Blackboard().set("{}_speed".format(self._actor.id), self._target_velocity)
+        new_status = py_trees.common.Status.SUCCESS
 
         self.logger.debug("%s.update()[%s->%s]" % (self.__class__.__name__, self.status, new_status))
 
@@ -847,6 +832,48 @@ class WaypointFollower(AtomicBehavior):
                 local_planner = None
         super(WaypointFollower, self).terminate(new_status)
 
+
+class LaneKeeper(WaypointFollower):
+    def __init__(self, actor):
+        super(LaneKeeper,self ).__init__(actor, 0)
+
+    def _apply_local_planner(self, actor):
+        local_planner = VariableSpeedLocalPlanner(  # pylint: disable=undefined-variable
+            actor, opt_dict={
+                'target_speed': self._target_speed,
+                'lateral_control_dict': self._args_lateral_dict})
+        if self._plan is not None:
+            local_planner.set_global_plan(self._plan)
+        self._local_planner_list.append(local_planner)
+
+    def update(self):
+        """
+        Run local planner, obtain and apply control to actor
+        """
+
+        new_status = py_trees.common.Status.RUNNING
+
+        if self._blackboard_queue_name is not None:
+            while not self._queue.empty():
+                actor = self._queue.get()
+                if actor is not None and actor not in self._actor_list:
+                    self._actor_list.append(actor)
+                    self._apply_local_planner(actor)
+
+        for actor, local_planner in zip(self._actor_list, self._local_planner_list):
+            if actor is not None and actor.is_alive and local_planner is not None:
+                if Blackboard().get("{}_speed".format(actor.id)) is not None:
+                    new_target_speed = float(Blackboard().get("{}_speed".format(actor.id)))
+                    if new_target_speed != self._target_speed:
+                        self._target_speed = new_target_speed
+                        local_planner.set_speed(self._target_speed)
+                control = local_planner.run_step(debug=False)
+                if self._avoid_collision and detect_lane_obstacle(actor):
+                    control.throttle = 0.0
+                    control.brake = 1.0
+                actor.apply_control(control)
+
+        return new_status
 
 class LaneChange(WaypointFollower):
 

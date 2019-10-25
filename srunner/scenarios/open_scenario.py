@@ -14,7 +14,7 @@ import py_trees
 from srunner.scenarios.basic_scenario import BasicScenario
 from srunner.tools.openscenario_parser import OpenScenarioParser
 from srunner.scenariomanager.timer import GameTime
-
+from srunner.scenariomanager.scenarioatomics.atomic_behaviors import LaneKeeper
 
 OPENSCENARIO = ["OpenScenario"]
 
@@ -314,7 +314,11 @@ class OpenScenario(BasicScenario):
         story_behavior = py_trees.composites.Parallel(
             policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ALL, name="Story")
 
+
         joint_actor_list = self.other_actors + self.ego_vehicles
+
+        for actor in joint_actor_list:
+            story_behavior.add_child(LaneKeeper(actor))
 
         for act in self.config.story.iter("Act"):
 
@@ -331,7 +335,7 @@ class OpenScenario(BasicScenario):
                 policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ALL, name="Maneuvers")
 
             for sequence in act.iter("Sequence"):
-                sequence_behavior = py_trees.composites.Sequence()
+                sequence_behavior = py_trees.composites.Sequence(name="{}_iterations".format(sequence.attrib.get('name')))
                 repetitions = sequence.attrib.get('numberOfExecutions', 1)
                 actor_ids = []
                 for actor in sequence.iter("Actors"):
