@@ -29,6 +29,9 @@ from srunner.scenariomanager.carla_data_provider import CarlaActorPool, CarlaDat
 from srunner.scenariomanager.timer import GameTime
 from srunner.tools.scenario_helper import detect_lane_obstacle
 
+# import scenario_helper.py
+from srunner.tools.scenario_helper import generate_target_waypoint_list_multilane
+
 EPSILON = 0.001
 
 
@@ -140,6 +143,85 @@ class AccelerateToVelocity(AtomicBehavior):
         return new_status
 
 
+class AccelerateToCatchUp(AtomicBehavior):
+
+    """
+    This class contains an atomic acceleration behavior.
+    The car will accelerate until it is faster than another car, in order to catch up distance.
+    This behaviour is especially useful before a lane change (e.g. LaneChange atom).
+
+    Important parameters:
+    - actor: CARLA actor to execute the behaviour
+    - other_actor: Reference CARLA actor, actor you want to catch up to
+    - throttle_value: acceleration value between 0.0 and 1.0
+    - delta_velocity: speed up to the velocity of other actor plus delta_velocity
+    - trigger_distance: distance between the actors
+    - max_distance: driven distance to catch up has to be smaller than max_distance
+
+    The behaviour will terminate succesful, when the two actors are in trigger_distance.
+    If max_distance is driven by the actor before actors are in trigger_distance,
+    then the behaviour ends with a failure.
+    """
+
+    def __init__(self, actor, other_actor, throttle_value=1, delta_velocity=10, trigger_distance=5,
+                 max_distance=500, name="AccelerateToCatchUp"):
+        """
+        Setup parameters
+        The target_speet is calculated on the fly.
+        """
+        super(AccelerateToCatchUp, self).__init__(name)
+
+        self._actor = actor
+        self._other_actor = other_actor
+        self._throttle_value = throttle_value
+        self._delta_velocity = delta_velocity  # 1m/s=3.6km/h
+        self._trigger_distance = trigger_distance
+        self._max_distance = max_distance
+
+        self._control, self._type = get_actor_control(actor)
+
+        self._initial_actor_pos = None
+
+    def initialise(self):
+
+        # get initial actor position
+        self._initial_actor_pos = CarlaDataProvider.get_location(self._actor)
+
+    def update(self):
+
+        # get actor speed
+        actor_speed = CarlaDataProvider.get_velocity(self._actor)
+        target_speed = CarlaDataProvider.get_velocity(self._other_actor) + self._delta_velocity
+
+        # distance between actors
+        distance = CarlaDataProvider.get_location(self._actor).distance(
+            CarlaDataProvider.get_location(self._other_actor))
+
+        # driven distance of actor
+        driven_distance = CarlaDataProvider.get_location(self._actor).distance(self._initial_actor_pos)
+
+        if actor_speed < target_speed:
+            # set throttle to throttle_value to accelerate
+            self._control.throttle = self._throttle_value
+
+        if actor_speed >= target_speed:
+            # keep velocity until the actors are in trigger distance
+            self._control.throttle = 0
+
+        self._actor.apply_control(self._control)
+
+        # new status:
+        if distance <= self._trigger_distance:
+            new_status = py_trees.common.Status.SUCCESS
+
+        elif driven_distance > self._max_distance:
+            new_status = py_trees.common.Status.FAILURE
+        else:
+            new_status = py_trees.common.Status.RUNNING
+
+        return new_status
+
+
 class KeepVelocity(AtomicBehavior):
 
     """
@@ -241,6 +323,7 @@ class ChangeAutoPilot(AtomicBehavior):
 
     Important parameters:
     - actor: CARLA actor to execute the behavior
+    - activate: True (=enable autopilot) or False (=disable autopilot)
 
     The behavior terminates after changing the autopilot state
     """
@@ -683,7 +766,7 @@ class WaypointFollower(AtomicBehavior):
     A parallel termination behavior has to be used.
     """
 
-    def __init__(self, actor, target_speed, plan=None, blackboard_queue_name=None,
+    def __init__(self, actor, target_speed=None, plan=None, blackboard_queue_name=None,
                  avoid_collision=False, name="FollowWaypoints"):
         """
         Set up actor and local planner
@@ -691,7 +774,7 @@ class WaypointFollower(AtomicBehavior):
         super(WaypointFollower, self).__init__(name)
         self._actor_list = []
         self._actor_list.append(actor)
-        self._target_speed = target_speed * 3.6  # Note: Conversion from m/s to km/h required
+        self._target_speed = target_speed
         self._local_planner_list = []
         self._plan = plan
         self._blackboard_queue_name = blackboard_queue_name
@@ -706,10 +789,15 @@ class WaypointFollower(AtomicBehavior):
         """
         for actor in self._actor_list:
             self._apply_local_planner(actor)
-
         return True
 
     def _apply_local_planner(self, actor):
+
+        if self._target_speed is None:
+            self._target_speed = CarlaDataProvider.get_velocity(actor) * 3.6
+        else:
+            self._target_speed = self._target_speed * 3.6
+
         local_planner = LocalPlanner(  # pylint: disable=undefined-variable
             actor, opt_dict={
                 'target_speed': self._target_speed,
@@ -758,6 +846,77 @@ class WaypointFollower(AtomicBehavior):
                 local_planner.reset_vehicle()
                 local_planner = None
         super(WaypointFollower, self).terminate(new_status)
+
+
+class LaneChange(WaypointFollower):
+
+    """
+     This class inherits from the class WaypointFollower.
+
+     This class contains an atomic lane change behavior to a parallel lane.
+     The vehicle follows a waypoint plan to the other lane, which is calculated in the initialise method.
+     This waypoint plan is calculated with a scenario helper function.
+
+    Important parameters:
+    - actor: CARLA actor to execute the behavior
+    - speed: speed of the actor for the lane change, in m/s
+    - direction: 'right' or 'left', depending on which lane to change
+    - distance_same_lane: straight distance before lane change, in m
+    - distance_other_lane: straight distance after lane change, in m
+
+    The total distance driven is greater than the sum of distance_same_lane and distance_other_lane.
+    It results from the lane change distance plus the distance_same_lane plus distance_other_lane.
+    The lane change distance is set to 25m (straight), the driven distance is slightly greater.
+
+    A parallel termination behavior has to be used.
+
+
+    """
+
+    def __init__(self, actor, speed=10, direction='left',
+                 distance_same_lane=5, distance_other_lane=100, name='LaneChange'):
+
+        self._actor = actor
+        self._direction = direction
+        self._distance_same_lane = distance_same_lane
+        self._distance_other_lane = distance_other_lane
+
+        self._target_lane_id = None
+        self._distance_new_lane = 0
+        self._pos_before_lane_change = None
+
+        super(LaneChange, self).__init__(actor, target_speed=speed, name=name)
+
+    def initialise(self):
+
+        # get start position
+        position_actor = CarlaDataProvider.get_map().get_waypoint(self._actor.get_location())
+
+        # calculate plan with scenario_helper function
+        self._plan, self._target_lane_id = generate_target_waypoint_list_multilane(
+            position_actor, self._direction, self._distance_same_lane,
+            self._distance_other_lane, check='true')
+        super(LaneChange, self).initialise()
+
+    def update(self):
+        status = super(LaneChange, self).update()
+
+        current_position_actor = CarlaDataProvider.get_map().get_waypoint(self._actor.get_location())
+        current_lane_id = current_position_actor.lane_id
+
+        if current_lane_id == self._target_lane_id:
+            # driving on new lane
+            distance = current_position_actor.transform.location.distance(self._pos_before_lane_change)
+
+            if distance > 50:
+                # long enough distance on new lane --> SUCCESS
+                status = py_trees.common.Status.SUCCESS
+
+        else:
+            # no lane change yet
+            self._pos_before_lane_change = current_position_actor.transform.location
+
+        return status
 
 
 class HandBrakeVehicle(AtomicBehavior):
@@ -842,6 +1001,12 @@ class ActorTransformSetter(AtomicBehavior):
     - physics [optional]: If physics is true, the actor physics will be reactivated upon success
 
     The behavior terminates after trying to set the new actor transform
+
+    NOTE:
+    It is very important to ensure that the actor location is spawned to the new transform because of the
+    appearence of a rare runtime processing error. WaypointFollower with LocalPlanner,
+    might fail if new_status is set to success before the actor is really positioned at the new transform.
+    Therefore: calculate_distance(actor, transform) < 1 meter
     """
 
     def __init__(self, actor, transform, physics=True, name="ActorTransformSetter"):
@@ -854,17 +1019,77 @@ class ActorTransformSetter(AtomicBehavior):
         self._physics = physics
         self.logger.debug("%s.__init__()" % (self.__class__.__name__))
 
+    def initialise(self):
+        if self._actor.is_alive:
+            self._actor.set_velocity(carla.Vector3D(0, 0, 0))
+            self._actor.set_angular_velocity(carla.Vector3D(0, 0, 0))
+            self._actor.set_transform(self._transform)
+
     def update(self):
         """
         Transform actor
         """
         new_status = py_trees.common.Status.RUNNING
-        if self._actor.is_alive:
-            self._actor.set_velocity(carla.Vector3D(0, 0, 0))
-            self._actor.set_angular_velocity(carla.Vector3D(0, 0, 0))
-            self._actor.set_transform(self._transform)
+
+        if not self._actor.is_alive:
+            new_status = py_trees.common.Status.FAILURE
+
+        if calculate_distance(self._actor.get_location(), self._transform.location) < 1.0:
             if self._physics:
                 self._actor.set_simulate_physics(enabled=True)
+            new_status = py_trees.common.Status.SUCCESS
+
+        return new_status
+
+
+class TrafficLightStateSetter(AtomicBehavior):
+
+    """
+    This class contains an atomic behavior to set the state of a given traffic light
+
+    Important parameters:
+    - traffic_light_id: ID of the traffic light that shall be changed
+    - state: New target state
+
+    The behavior terminates after trying to set the new state
+    """
+
+    def __init__(self, traffic_light_id, state, name="TrafficLightStateSetter"):
+        """
+        Init
+        """
+        super(TrafficLightStateSetter, self).__init__(name)
+
+        self._actor = None
+        actor_list = CarlaDataProvider.get_world().get_actors()
+        for actor in actor_list:
+            if actor.id == int(traffic_light_id):
+                self._actor = actor
+                break
+
+        new_state = carla.TrafficLightState.Unknown
+        if state.upper() == "GREEN":
+            new_state = carla.TrafficLightState.Green
+        elif state.upper() == "RED":
+            new_state = carla.TrafficLightState.Red
+        elif state.upper() == "YELLOW":
+            new_state = carla.TrafficLightState.Yellow
+        elif state.upper() == "OFF":
+            new_state = carla.TrafficLightState.Off
+
+        self._new_traffic_light_state = new_state
+        self.logger.debug("%s.__init__()" % (self.__class__.__name__))
+
+    def update(self):
+        """
+        Transform actor
+        """
+        if self._actor is None:
+            return py_trees.common.Status.FAILURE
+
+        new_status = py_trees.common.Status.RUNNING
+        if self._actor.is_alive:
+            self._actor.set_state(self._new_traffic_light_state)
             new_status = py_trees.common.Status.SUCCESS
         else:
             # For some reason the actor is gone...

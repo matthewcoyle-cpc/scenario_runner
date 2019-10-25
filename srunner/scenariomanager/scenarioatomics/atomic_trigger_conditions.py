@@ -20,6 +20,7 @@ base class
 
 from __future__ import print_function
 
+import operator
 import py_trees
 
 from agents.navigation.basic_agent import *
@@ -120,6 +121,98 @@ class TriggerVelocity(AtomicBehavior):
         return new_status
 
 
+class AtStartCondition(AtomicBehavior):
+
+    """
+    This class contains a check if a named story element has started.
+
+    Important parameters:
+    - element_name: The story element's name attribute
+    - element_type: The element type [act,scene,maneuver,event,action]
+
+    The condition terminates with SUCCESS, when the named story element starts
+    """
+
+    def __init__(self, element_type, element_name):
+        """
+        Setup element details
+        """
+        super(AtStartCondition, self).__init__("AtStartCondition")
+        self.logger.debug("%s.__init__()" % (self.__class__.__name__))
+        self._element_type = element_type
+        self._element_name = element_name
+        self._start_time = None
+        self._blackboard = py_trees.blackboard.Blackboard()
+
+    def initialise(self):
+        """
+        Initialize the start time of this condition
+        """
+        self._start_time = GameTime.get_time()
+        super(AtStartCondition, self).initialise()
+
+    def update(self):
+        """
+        Check if the specified story element has started since the beginning of the condition
+        """
+        new_status = py_trees.common.Status.RUNNING
+
+        blackboard_variable_name = "({}){}-{}".format(self._element_type.upper(), self._element_name, "START")
+        element_start_time = self._blackboard.get(blackboard_variable_name)
+        if element_start_time and element_start_time >= self._start_time:
+            new_status = py_trees.common.Status.SUCCESS
+
+        self.logger.debug("%s.update()[%s->%s]" % (self.__class__.__name__, self.status, new_status))
+
+        return new_status
+
+
+class AfterTerminationCondition(AtomicBehavior):
+
+    """
+    This class contains a check if a named story element has terminated.
+
+    Important parameters:
+    - element_name: The story element's name attribute
+    - element_type: The element type [act,scene,maneuver,event,action]
+
+    The condition terminates with SUCCESS, when the named story element ends
+    """
+
+    def __init__(self, element_type, element_name, rule):
+        """
+        Setup element details
+        """
+        super(AfterTerminationCondition, self).__init__("AfterTerminationCondition")
+        self.logger.debug("%s.__init__()" % (self.__class__.__name__))
+        self._element_type = element_type.upper()
+        self._element_name = element_name
+        self._rule = rule.upper()
+        self._start_time = GameTime.get_time()
+        self._blackboard = py_trees.blackboard.Blackboard()
+
+    def update(self):
+        """
+        Check if the specified story element has ended since the beginning of the condition
+        """
+        new_status = py_trees.common.Status.RUNNING
+        if self._rule == "ANY":
+            rules = ["END", "CANCEL"]
+        else:
+            rules = [self._rule]
+
+        for rule in rules:
+            if new_status == py_trees.common.Status.RUNNING:
+                blackboard_variable_name = "({}){}-{}".format(self._element_type, self._element_name, rule)
+                element_start_time = self._blackboard.get(blackboard_variable_name)
+                if element_start_time and element_start_time >= self._start_time:
+                    new_status = py_trees.common.Status.SUCCESS
+
+        self.logger.debug("%s.update()[%s->%s]" % (self.__class__.__name__, self.status, new_status))
+
+        return new_status
+
+
 class InTriggerRegion(AtomicBehavior):
 
     """
@@ -182,7 +275,7 @@ class InTriggerDistanceToVehicle(AtomicBehavior):
     The condition terminates with SUCCESS, when the actor reached the target distance to the other actor
     """
 
-    def __init__(self, other_actor, actor, distance, name="TriggerDistanceToVehicle"):
+    def __init__(self, other_actor, actor, distance, comparison_operator=operator.lt, name="TriggerDistanceToVehicle"):
         """
         Setup trigger distance
         """
@@ -191,6 +284,7 @@ class InTriggerDistanceToVehicle(AtomicBehavior):
         self._other_actor = other_actor
         self._actor = actor
         self._distance = distance
+        self._comparison_operator = comparison_operator
 
     def update(self):
         """
@@ -204,7 +298,7 @@ class InTriggerDistanceToVehicle(AtomicBehavior):
         if ego_location is None or other_location is None:
             return new_status
 
-        if calculate_distance(ego_location, other_location) < self._distance:
+        if self._comparison_operator(calculate_distance(ego_location, other_location), self._distance):
             new_status = py_trees.common.Status.SUCCESS
 
         self.logger.debug("%s.update()[%s->%s]" % (self.__class__.__name__, self.status, new_status))
@@ -227,7 +321,12 @@ class InTriggerDistanceToLocation(AtomicBehavior):
     The condition terminates with SUCCESS, when the actor reached the target distance to the given location
     """
 
-    def __init__(self, actor, target_location, distance, name="InTriggerDistanceToLocation"):
+    def __init__(self,
+                 actor,
+                 target_location,
+                 distance,
+                 comparison_operator=operator.lt,
+                 name="InTriggerDistanceToLocation"):
         """
         Setup trigger distance
         """
@@ -236,6 +335,7 @@ class InTriggerDistanceToLocation(AtomicBehavior):
         self._target_location = target_location
         self._actor = actor
         self._distance = distance
+        self._comparison_operator = comparison_operator
 
     def update(self):
         """
@@ -248,8 +348,8 @@ class InTriggerDistanceToLocation(AtomicBehavior):
         if location is None:
             return new_status
 
-        if calculate_distance(
-                location, self._target_location) < self._distance:
+        if self._comparison_operator(calculate_distance(
+                location, self._target_location), self._distance):
             new_status = py_trees.common.Status.SUCCESS
 
         self.logger.debug("%s.update()[%s->%s]" % (self.__class__.__name__, self.status, new_status))
@@ -371,7 +471,7 @@ class InTimeToArrivalToLocation(AtomicBehavior):
 
     _max_time_to_arrival = float('inf')  # time to arrival in seconds
 
-    def __init__(self, actor, time, location, name="TimeToArrival"):
+    def __init__(self, actor, time, location, comparison_operator=operator.lt, name="TimeToArrival"):
         """
         Setup parameters
         """
@@ -380,6 +480,7 @@ class InTimeToArrivalToLocation(AtomicBehavior):
         self._actor = actor
         self._time = time
         self._target_location = location
+        self._comparison_operator = comparison_operator
 
     def update(self):
         """
@@ -400,7 +501,7 @@ class InTimeToArrivalToLocation(AtomicBehavior):
         if velocity > EPSILON:
             time_to_arrival = distance / velocity
 
-        if time_to_arrival < self._time:
+        if self._comparison_operator(time_to_arrival, self._time):
             new_status = py_trees.common.Status.SUCCESS
 
         self.logger.debug("%s.update()[%s->%s]" % (self.__class__.__name__, self.status, new_status))
@@ -425,7 +526,7 @@ class InTimeToArrivalToVehicle(AtomicBehavior):
 
     _max_time_to_arrival = float('inf')  # time to arrival in seconds
 
-    def __init__(self, other_actor, actor, time, name="TimeToArrival"):
+    def __init__(self, other_actor, actor, time, comparison_operator=operator.lt, name="TimeToArrival"):
         """
         Setup parameters
         """
@@ -434,6 +535,7 @@ class InTimeToArrivalToVehicle(AtomicBehavior):
         self._other_actor = other_actor
         self._actor = actor
         self._time = time
+        self._comparison_operator = comparison_operator
 
     def update(self):
         """
@@ -457,7 +559,7 @@ class InTimeToArrivalToVehicle(AtomicBehavior):
         if current_velocity > other_velocity:
             time_to_arrival = 2 * distance / (current_velocity - other_velocity)
 
-        if time_to_arrival < self._time:
+        if self._comparison_operator(time_to_arrival, self._time):
             new_status = py_trees.common.Status.SUCCESS
 
         self.logger.debug("%s.update()[%s->%s]" % (self.__class__.__name__, self.status, new_status))

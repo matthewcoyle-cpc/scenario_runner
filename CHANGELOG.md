@@ -4,20 +4,41 @@
 * Moved atomics into new submodule scenarioatomics
 * Updated documentation for all behaviors, conditions and test criteria
 * Refactoring of scenario configurations and parsers
+* Extended WaypointFollower atomic behavior to be able to use the current actor speed
+* Added example scenario for lane change
+* Added cut-in example scenario
 * New Features:
+    - Added LaneChange and TrafficLightSateSetter behavior atomics
+    - Added AccelerateToCatchUp behavior atomic
     - Added get_transform() method for CarlaDataProvider
     - Added support for weather conditions
     - Added basic version check to ensure usage of correct CARLA version
     - Routes can be executed with the ScenarioRunner
+    - Agents can be used with the ScenarioRunner (currently only for route-based scenarios)
+    - Challenge can be executed with the ScenarioRunner
 * Extended OpenScenario support:
     - Added support for pedestrians
     - Full support for SimulationTime condition
     - Added weather support
+    - Updated implementation to be closer to upcoming OpenSCENARIO standard
+    - AfterTermination, AtStart conditions are supported
+    - Added initial support for lateral action: LaneChange
+    - Added initial support for OSCGlobalAction to set state of traffic signal
+    - Added possibility to change speed for FollowRoute action
+    - Added support for RoadCondition: Friction
+    - Redundant rolename object property is no longer required
+    - Added support for global parameters
 * Fixes:
     - Avoided use of 'controller.ai.walker' as walker type in DynamicObjectCrossing scenario
     - Fixed WaypointFollower behavior to use m/s instead of km/h
     - Fixed starting position of VehicleTurnLeft/Right scenarios
     - Fixed spawn_point modification inside CarlaActorPool.setup_actor()
+    - Fixed result of DrivenDistanceTest
+    - Fixed exception in manual_control on fps visualization
+    - Cleanup of pylint errors for all autonomous agents
+    - Fixed randomness of route-based scenarios
+    - Fixed usage of radians instead of degrees for OpenSCENARIO
+    - Fixed ActorTransformSetter behavior to avoid vehicles not reaching the desired transform
 
 ## CARLA Scenario_Runner 0.9.6
 **This is the _first_ release to work with CARLA 0.9.6**

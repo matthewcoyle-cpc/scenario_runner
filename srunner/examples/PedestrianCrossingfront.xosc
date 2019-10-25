@@ -48,7 +48,6 @@
                     <Rear maxSteering="0.0" wheelDiameter="0.6" trackWidth="1.8" positionX="0.0" positionZ="0.3" />
                 </Axles>
                 <Properties>
-                    <Property name="rolename" value="hero" />
                     <Property name="type" value="ego_vehicle" />
                 </Properties>
             </Vehicle>
@@ -61,7 +60,6 @@
                     <Dimension width="2.1" length="4.5" height="1.8" />
                 </BoundingBox>
                 <Properties>
-                    <Property name="rolename" value="adversary" />
                     <Property name="type" value="simulation" />
                 </Properties>
             </Pedestrian>
@@ -89,14 +87,14 @@
                 <Private object="hero">
                     <Action>
                         <Position>
-                            <World x="150" y="55" z="0" h="180" />
+                            <World x="150" y="55" z="0" h="3.14159265359" />
                         </Position>
                     </Action>
                 </Private>
                 <Private object="adversary">
                     <Action>
                         <Position>
-                            <World x="110" y="52" z="0.3" h="90" />
+                            <World x="110" y="52" z="0.3" h="1.57079632679" />
                         </Position>
                     </Action>
                 </Private>
@@ -166,11 +164,16 @@
                                             </EntityCondition>
                                         </ByEntity>
                                     </Condition>
+                                    <Condition name="AfterPedestrianWalks" delay="0" edge="rising">
+                                        <ByState>
+                                            <AfterTermination type="action" name="PedestrianStartsWalking" rule="any"/>
+                                        </ByState>
+                                    </Condition>
                                 </ConditionGroup>
                             </StartConditions>
                         </Event>
                         <Event name="PedestrianWalksAway" priority="overwrite">
-                            <Action name="PedestrianStartsWalking">
+                            <Action name="PedestrianStartsWalkingAway">
                                 <Private>
                                     <Longitudinal>
                                         <Speed>
@@ -193,6 +196,11 @@
                                                 <StandStill duration="0.1" />
                                             </EntityCondition>
                                         </ByEntity>
+                                    </Condition>
+                                    <Condition name="AfterPedestrianStopsAndWaits" delay="0" edge="rising">
+                                        <ByState>
+                                            <AfterTermination type="action" name="PedestrianStopsAndWaits" rule="any"/>
+                                        </ByState>
                                     </Condition>
                                 </ConditionGroup>
                             </StartConditions>
@@ -221,6 +229,11 @@
                                                 <StandStill duration="0.1" />
                                             </EntityCondition>
                                         </ByEntity>
+                                    </Condition>
+                                    <Condition name="AfterPedestrianStartsWalking" delay="0" edge="rising">
+                                        <ByState>
+                                            <AfterTermination type="action" name="PedestrianStartsWalkingAway" rule="any"/>
+                                        </ByState>
                                     </Condition>
                                 </ConditionGroup>
                             </StartConditions>
@@ -261,37 +274,37 @@
         </Story>
         <EndConditions>
             <ConditionGroup>
-                <Condition name="RunningStopTest" delay="0" edge="rising">
+                <Condition name="criteria_RunningStopTest" delay="0" edge="rising">
                     <ByValue>
                         <Parameter name="" value="" rule="less_than" />
                     </ByValue>
                 </Condition>
-                <Condition name="RunningRedLightTest" delay="0" edge="rising">
+                <Condition name="criteria_RunningRedLightTest" delay="0" edge="rising">
                     <ByValue>
                         <Parameter name="" value="" rule="less_than" />
                     </ByValue>
                 </Condition>
-                <Condition name="WrongLaneTest" delay="0" edge="rising">
+                <Condition name="criteria_WrongLaneTest" delay="0" edge="rising">
                     <ByValue>
                         <Parameter name="" value="" rule="less_than" />
                     </ByValue>
                 </Condition>
-                <Condition name="OnSidewalkTest" delay="0" edge="rising">
+                <Condition name="criteria_OnSidewalkTest" delay="0" edge="rising">
                     <ByValue>
                         <Parameter name="" value="" rule="less_than" />
                     </ByValue>
                 </Condition>
-                <Condition name="KeepLaneTest" delay="0" edge="rising">
+                <Condition name="criteria_KeepLaneTest" delay="0" edge="rising">
                     <ByValue>
                         <Parameter name="" value="" rule="less_than" />
                     </ByValue>
                 </Condition>
-                <Condition name="CollisionTest" delay="0" edge="rising">
+                <Condition name="criteria_CollisionTest" delay="0" edge="rising">
                     <ByValue>
                         <Parameter name="" value="" rule="less_than" />
                     </ByValue>
                 </Condition>
-                <Condition name="DrivenDistanceTest" delay="0" edge="rising">
+                <Condition name="criteria_DrivenDistanceTest" delay="0" edge="rising">
                     <ByValue>
                         <Parameter name="distance_success" value="100" rule="less_than" />
                     </ByValue>

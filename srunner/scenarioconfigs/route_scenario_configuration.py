@@ -9,8 +9,6 @@
 This module provides the key configuration parameters for a route-based scenario
 """
 
-from __future__ import print_function
-
 import carla
 from agents.navigation.local_planner import RoadOption
 
@@ -70,7 +68,7 @@ class RouteScenarioConfiguration(ScenarioConfiguration):
         self.ego_vehicles = []
         self.trigger_points = []
 
-        self.name = "RouteScenario"
+        self.name = "RouteScenario_{}".format(route_description['id'])
         self.town = route_description['town_name']
         self.route_description = route_description
 

@@ -11,12 +11,15 @@ These must not be modified and are for reference only!
 """
 
 from __future__ import print_function
+import signal
 import sys
 import time
 import threading
 
 import py_trees
 
+from srunner.challenge.autoagents.agent_wrapper import AgentWrapper
+from srunner.challenge.challenge_statistics_manager import ChallengeStatisticsManager
 from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
 from srunner.scenariomanager.result_writer import ResultOutputProvider
 from srunner.scenariomanager.timer import GameTime, TimeOut
@@ -41,6 +44,7 @@ class Scenario(object):
         self.behavior = behavior
         self.test_criteria = criteria
         self.timeout = timeout
+        self.name = name
 
         if self.test_criteria is not None and not isinstance(self.test_criteria, py_trees.composites.Parallel):
             # list of nodes
@@ -66,12 +70,11 @@ class Scenario(object):
             self.scenario_tree.add_child(self.criteria_tree)
         self.scenario_tree.setup(timeout=1)
 
-    def terminate(self):
+    def _extract_nodes_from_tree(self, tree):  # pylint: disable=no-self-use
         """
-        This function sets the status of all leaves in the scenario tree to INVALID
+        Returns the list of all nodes from the given tree
         """
-        # Get list of all leaves in the tree
-        node_list = [self.scenario_tree]
+        node_list = [tree]
         more_nodes_exist = True
         while more_nodes_exist:
             more_nodes_exist = False
@@ -81,6 +84,25 @@ class Scenario(object):
                     more_nodes_exist = True
                     for child in node.children:
                         node_list.append(child)
+
+        if len(node_list) == 1 and isinstance(node_list[0], py_trees.composites.Parallel):
+            return []
+
+        return node_list
+
+    def get_criteria(self):
+        """
+        Return the list of test criteria (all leave nodes)
+        """
+        criteria_list = self._extract_nodes_from_tree(self.criteria_tree)
+        return criteria_list
+
+    def terminate(self):
+        """
+        This function sets the status of all leaves in the scenario tree to INVALID
+        """
+        # Get list of all nodes in the tree
+        node_list = self._extract_nodes_from_tree(self.scenario_tree)
 
         # Set status to INVALID
         for node in node_list:
@@ -105,7 +127,7 @@ class ScenarioManager(object):
     5. Cleanup with manager.stop_scenario()
     """
 
-    def __init__(self, world, debug_mode=False):
+    def __init__(self, debug_mode=False, challenge_mode=False):
         """
         Init requires scenario as input
         """
@@ -116,8 +138,8 @@ class ScenarioManager(object):
         self.other_actors = None
 
         self._debug_mode = debug_mode
-        self.agent = None
-        self._autonomous_agent_plugged = False
+        self._challenge_mode = challenge_mode
+        self._agent = None
         self._running = False
         self._timestamp_last_run = 0.0
         self._my_lock = threading.Lock()
@@ -127,13 +149,41 @@ class ScenarioManager(object):
         self.start_system_time = None
         self.end_system_time = None
 
-        world.on_tick(self._tick_scenario)
+        # Register the scenario tick as callback for the CARLA world
+        # Use the callback_id inside the signal handler to allow external interrupts
+        self._callback_id = None
+        signal.signal(signal.SIGINT, self._signal_handler)
 
-    def load_scenario(self, scenario):
+    def _signal_handler(self, signum, frame):
+        """
+        Terminate scenario ticking when receiving a signal interrupt
+        """
+        CarlaDataProvider.get_world().remove_on_tick(self._callback_id)
+        with self._my_lock:
+            self._running = False
+
+    def _reset(self):
+        """
+        Reset all parameters
+        """
+        self._running = False
+        self._timestamp_last_run = 0.0
+        self.scenario_duration_system = 0.0
+        self.scenario_duration_game = 0.0
+        self.start_system_time = None
+        self.end_system_time = None
+        if self._callback_id:
+            CarlaDataProvider.get_world().remove_on_tick(self._callback_id)
+            self._callback_id = None
+        GameTime.restart()
+
+    def load_scenario(self, scenario, agent=None):
         """
         Load a new scenario
         """
-        self.restart()
+        self._reset()
+        self._callback_id = CarlaDataProvider.get_world().on_tick(self._tick_scenario)
+        self._agent = AgentWrapper(agent, self._challenge_mode) if agent else None
         self.scenario_class = scenario
         self.scenario = scenario.scenario
         self.scenario_tree = self.scenario.scenario_tree
@@ -145,17 +195,11 @@ class ScenarioManager(object):
         # To print the scenario tree uncomment the next line
         # py_trees.display.render_dot_tree(self.scenario_tree)
 
-    def restart(self):
-        """
-        Reset all parameters
-        """
-        self._running = False
-        self._timestamp_last_run = 0.0
-        self.scenario_duration_system = 0.0
-        self.scenario_duration_game = 0.0
-        self.start_system_time = None
-        self.end_system_time = None
-        GameTime.restart()
+        if self._challenge_mode:
+            ChallengeStatisticsManager.next_scenario(self.scenario)
+
+        if self._agent is not None:
+            self._agent.setup_sensors(self.ego_vehicles[0], self._debug_mode)
 
     def run_scenario(self):
         """
@@ -186,11 +230,12 @@ class ScenarioManager(object):
         This function is a callback for world.on_tick()
 
         Important:
-        - It hast to be ensured that the scenario has not yet completed/failed
+        - It has to be ensured that the scenario has not yet completed/failed
           and that the time moved forward.
         - A thread lock should be used to avoid that the scenario tick is performed
           multiple times in parallel.
         """
+
         with self._my_lock:
             if self._running and self._timestamp_last_run < timestamp.elapsed_seconds:
                 self._timestamp_last_run = timestamp.elapsed_seconds
@@ -201,6 +246,9 @@ class ScenarioManager(object):
                 # Update game time and actor information
                 GameTime.on_carla_tick(timestamp)
                 CarlaDataProvider.on_carla_tick()
+
+                if self._agent is not None:
+                    ego_action = self._agent()
 
                 # Tick scenario
                 self.scenario_tree.tick_once()
@@ -214,19 +262,37 @@ class ScenarioManager(object):
                 if self.scenario_tree.status != py_trees.common.Status.RUNNING:
                     self._running = False
 
+                if self._challenge_mode:
+                    ChallengeStatisticsManager.compute_current_statistics()
+
+                if self._agent is not None:
+                    self.ego_vehicles[0].apply_control(ego_action)
+
+        if self._agent:
+            CarlaDataProvider.get_world().tick()
+
     def stop_scenario(self):
         """
         This function triggers a proper termination of a scenario
         """
+        with self._my_lock:
+            if self._callback_id:
+                CarlaDataProvider.get_world().remove_on_tick(self._callback_id)
+                self._callback_id = None
+
         if self.scenario is not None:
             self.scenario.terminate()
+
+        if self._agent is not None:
+            self._agent.cleanup()
+            self._agent = None
 
         CarlaDataProvider.cleanup()
 
     def analyze_scenario(self, stdout, filename, junit):
         """
         This function is intended to be called from outside and provide
-        statistics about the scenario (human-readable, in form of a junit
+        the final statistics about the scenario (human-readable, in form of a junit
         report, etc.)
         """
 
@@ -237,19 +303,14 @@ class ScenarioManager(object):
         if self.scenario.test_criteria is None:
             return True
 
-        if isinstance(self.scenario.test_criteria, py_trees.composites.Parallel):
-            if self.scenario.test_criteria.status == py_trees.common.Status.FAILURE:
+        for criterion in self.scenario.get_criteria():
+            if (not criterion.optional and
+                    criterion.test_status != "SUCCESS" and
+                    criterion.test_status != "ACCEPTABLE"):
                 failure = True
                 result = "FAILURE"
-        else:
-            for criterion in self.scenario.test_criteria:
-                if (not criterion.optional and
-                        criterion.test_status != "SUCCESS" and
-                        criterion.test_status != "ACCEPTABLE"):
-                    failure = True
-                    result = "FAILURE"
-                elif criterion.test_status == "ACCEPTABLE":
-                    result = "ACCEPTABLE"
+            elif criterion.test_status == "ACCEPTABLE":
+                result = "ACCEPTABLE"
 
         if self.scenario.timeout_node.timeout and not failure:
             timeout = True
@@ -257,5 +318,8 @@ class ScenarioManager(object):
 
         output = ResultOutputProvider(self, result, stdout, filename, junit)
         output.write()
+
+        if self._challenge_mode:
+            ChallengeStatisticsManager.record_scenario_statistics()
 
         return failure or timeout

@@ -82,13 +82,13 @@ A list of supported scenarios is provided in
 different scenarios may take place in different CARLA towns. This has to be
 respected when launching the CARLA server.
 
-## Running scenarios using the OpenScenario format
-To run a scenario, which is based on the OpenScenario format, please run the ScenarioRunner as follows:
+## Running scenarios using the OpenSCENARIO format
+To run a scenario, which is based on the OpenSCENARIO format, please run the ScenarioRunner as follows:
 ```
 python scenario_runner.py --openscenario <path/to/xosc-file>
 ```
-Please note that the OpenScenario support and the OpenScenario format itself are still work in progress.
-More information you can find in [OpenScenario support](openscenario_support.md)
+Please note that the OpenSCENARIO support and the OpenSCENARIO format itself are still work in progress.
+More information you can find in [OpenSCENARIO support](openscenario_support.md)
 
 ## Running route-based scenario (similar to the CARLA AD Challenge)
 To run a route-based scenario, please run the ScenarioRunner as follows:
@@ -100,4 +100,11 @@ Example:
 python scenario_runner.py /scenario_runner/srunner/challenge/routes_debug.xml /scenario_runner/srunner/challenge/all_towns_traffic_scenarios1_3_4.json 0
 ```
 If no route id is provided, all routes within the given file will be executed.
+
+For route-based scenarios, it is also possible to use an autonomous agent to control the ego vehicle.
+Several examples are provided in srunner/challenge/autoagents/. To make use of such an agent, run:
+```
+python scenario_runner.py /scenario_runner/srunner/challenge/routes_debug.xml /scenario_runner/srunner/challenge/all_towns_traffic_scenarios1_3_4.json 0 --agent /scenario_runner/srunner/challenge/autoagents/human_agent.py
+```
+For more information about agents, please have a look into the [agent documentation](agent_evaluation.md)
 

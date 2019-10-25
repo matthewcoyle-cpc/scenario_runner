@@ -13,8 +13,8 @@ from __future__ import print_function
 
 import copy
 import math
-import random
 import xml.etree.ElementTree as ET
+import numpy.random as random
 
 import py_trees
 
@@ -188,7 +188,7 @@ class RouteScenario(BasicScenario):
 
         self._create_scenarios_along_route(world, ego_vehicle, config, debug_mode)
 
-        super(RouteScenario, self).__init__("RouteScenario",
+        super(RouteScenario, self).__init__(name=config.name,
                                             ego_vehicles=[ego_vehicle],
                                             config=config,
                                             world=world,
@@ -211,8 +211,8 @@ class RouteScenario(BasicScenario):
         _route_description = copy.copy(config.route_description)
 
         # prepare route's trajectory
-        _, _route_description['trajectory'] = interpolate_trajectory(world,
-                                                                     _route_description['trajectory'])
+        gps_route, _route_description['trajectory'] = interpolate_trajectory(world,
+                                                                             _route_description['trajectory'])
 
         potential_scenarios_definitions, _ = RouteParser.scan_route_for_scenarios(_route_description,
                                                                                   world_annotations)
@@ -220,6 +220,8 @@ class RouteScenario(BasicScenario):
         self.route = _route_description['trajectory']
         self.target = self.route[-1][0]
         CarlaDataProvider.set_ego_vehicle_route(convert_transform_to_location(self.route))
+
+        config.agent.set_global_plan(gps_route, self.route)
 
         # Sample the scenarios to be used for this route instance.
         self.sampled_scenarios_definitions = self._scenario_sampling(potential_scenarios_definitions)
@@ -329,10 +331,14 @@ class RouteScenario(BasicScenario):
         world.debug.draw_point(waypoints[-1][0].location + carla.Location(z=vertical_shift), size=0.2,
                                color=carla.Color(255, 0, 0), life_time=persistency)
 
-    def _scenario_sampling(self, potential_scenarios_definitions):
+    def _scenario_sampling(self, potential_scenarios_definitions, random_seed=0):
         """
         The function used to sample the scenarios that are going to happen for this route.
         """
+
+        # fix the random seed for reproducibility
+        rgn = random.RandomState(random_seed)
+
         def position_sampled(scenario_choice, sampled_scenarios):
             """
             Check if a position was already sampled, i.e. used for another scenario
@@ -348,14 +354,15 @@ class RouteScenario(BasicScenario):
         sampled_scenarios = []
         for trigger in potential_scenarios_definitions.keys():
             possible_scenarios = potential_scenarios_definitions[trigger]
+
             scenario_choice = random.choice(possible_scenarios)
             del possible_scenarios[possible_scenarios.index(scenario_choice)]
             # We keep sampling and testing if this position is present on any of the scenarios.
             while position_sampled(scenario_choice, sampled_scenarios):
-                if possible_scenarios is None:
+                if possible_scenarios is None or not possible_scenarios:
                     scenario_choice = None
                     break
-                scenario_choice = random.choice(possible_scenarios)
+                scenario_choice = rgn.choice(possible_scenarios)
                 del possible_scenarios[possible_scenarios.index(scenario_choice)]
 
             if scenario_choice is not None:
