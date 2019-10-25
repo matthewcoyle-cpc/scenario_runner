@@ -78,6 +78,8 @@ class OpenScenarioConfiguration(ScenarioConfiguration):
         """
         header = self.xml_tree.find("FileHeader")
         self.name = header.attrib.get('description', 'Unknown')
+        if not self.name:
+            self.name = 'Unknown'
 
     def _set_carla_town(self):
         """

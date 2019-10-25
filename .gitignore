@@ -16,3 +16,4 @@ results*.txt
 *.log
 .project
 .pydevproject
+_out/*
