@@ -211,7 +211,7 @@ class ScenarioRunner(object):
                                                                     True,
                                                                     color=vehicle.color)
                 self.ego_vehicles.append(ego_vehicle)     
-                Blackboard().set("{}_speed".format(ego_vehicle.id), vehicle.initial_speed)
+                Blackboard().set("{}_speed".format(ego_vehicle.attributes['role_name']), vehicle.initial_speed)
         else:
             ego_vehicle_missing = True
             while ego_vehicle_missing:

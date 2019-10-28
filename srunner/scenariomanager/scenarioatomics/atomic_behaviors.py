@@ -279,7 +279,7 @@ class KeepVelocity(AtomicBehavior):
         For walkers: simply apply the given self._control
         """
         new_status = py_trees.common.Status.RUNNING
-        Blackboard().set("{}_speed".format(self._actor.id), self._target_velocity)
+        Blackboard().set("{}_speed".format(self._actor.attributes['role_name']), self._target_velocity)
         new_status = py_trees.common.Status.SUCCESS
 
         self.logger.debug("%s.update()[%s->%s]" % (self.__class__.__name__, self.status, new_status))
@@ -291,13 +291,6 @@ class KeepVelocity(AtomicBehavior):
         On termination of this behavior, the throttle should be set back to 0.,
         to avoid further acceleration.
         """
-
-        if self._type == 'vehicle':
-            self._control.throttle = 0.0
-        elif self._type == 'walker':
-            self._control.speed = 0.0
-        if self._actor is not None and self._actor.is_alive:
-            self._actor.apply_control(self._control)
         super(KeepVelocity, self).terminate(new_status)
 
 
@@ -750,7 +743,7 @@ class WaypointFollower(AtomicBehavior):
 
     A parallel termination behavior has to be used.
     """
-
+    waypointfollow_dict = {}
     def __init__(self, actor, target_speed=None, plan=None, blackboard_queue_name=None,
                  avoid_collision=False, name="FollowWaypoints"):
         """
@@ -767,12 +760,25 @@ class WaypointFollower(AtomicBehavior):
             self._queue = Blackboard().get(blackboard_queue_name)
         self._args_lateral_dict = {'K_P': 1.0, 'K_D': 0.01, 'K_I': 0.0, 'dt': 0.05}
         self._avoid_collision = avoid_collision
+        self._reset=False
 
+    def deregister(self, actor):
+        if self in WaypointFollower.waypointfollow_dict[actor.attributes['role_name']]:
+            WaypointFollower.waypointfollow_dict[actor.attributes['role_name']].remove(self)
+        if len(WaypointFollower.waypointfollow_dict[actor.attributes['role_name']]) == 0:
+            WaypointFollower.waypointfollow_dict.remove(actor.attributes['role_name'])
+        else:
+            WaypointFollower.waypointfollow_dict[actor.attributes['role_name']][-1]._reset=True
+        
     def initialise(self):
         """
         Delayed one-time initialization
         """
         for actor in self._actor_list:
+            if actor.attributes['role_name'] in WaypointFollower.waypointfollow_dict:
+                WaypointFollower.waypointfollow_dict[actor.attributes['role_name']].append(self)
+            else:
+                WaypointFollower.waypointfollow_dict[actor.attributes['role_name']] = [self]
             self._apply_local_planner(actor)
         return True
 
@@ -807,11 +813,12 @@ class WaypointFollower(AtomicBehavior):
 
         for actor, local_planner in zip(self._actor_list, self._local_planner_list):
             if actor is not None and actor.is_alive and local_planner is not None:
-                control = local_planner.run_step(debug=False)
-                if self._avoid_collision and detect_lane_obstacle(actor):
-                    control.throttle = 0.0
-                    control.brake = 1.0
-                actor.apply_control(control)
+                if self == WaypointFollower.waypointfollow_dict[actor.attributes['role_name']][-1]:
+                    control = local_planner.run_step(debug=False)
+                    if self._avoid_collision and detect_lane_obstacle(actor):
+                        control.throttle = 0.0
+                        control.brake = 1.0
+                    actor.apply_control(control)
 
         return new_status
 
@@ -825,11 +832,12 @@ class WaypointFollower(AtomicBehavior):
         control.brake = 0.0
         control.steer = 0.0
         for actor, local_planner in zip(self._actor_list, self._local_planner_list):
-            if actor is not None and actor.is_alive:
+            if actor is not None and actor.is_alive and actor.attributes['role_name'] not in WaypointFollower.waypointfollow_dict:
                 actor.apply_control(control)
             if local_planner is not None:
                 local_planner.reset_vehicle()
                 local_planner = None
+            self.deregister(actor)
         super(WaypointFollower, self).terminate(new_status)
 
 
@@ -861,17 +869,21 @@ class LaneKeeper(WaypointFollower):
                     self._apply_local_planner(actor)
 
         for actor, local_planner in zip(self._actor_list, self._local_planner_list):
-            if actor is not None and actor.is_alive and local_planner is not None:
-                if Blackboard().get("{}_speed".format(actor.id)) is not None:
-                    new_target_speed = float(Blackboard().get("{}_speed".format(actor.id)))
-                    if new_target_speed != self._target_speed:
-                        self._target_speed = new_target_speed
-                        local_planner.set_speed(self._target_speed)
-                control = local_planner.run_step(debug=False)
-                if self._avoid_collision and detect_lane_obstacle(actor):
-                    control.throttle = 0.0
-                    control.brake = 1.0
-                actor.apply_control(control)
+            if actor is not None and actor.is_alive and local_planner is not None and actor.attributes['role_name'] in WaypointFollower.waypointfollow_dict:
+                if self == WaypointFollower.waypointfollow_dict[actor.attributes['role_name']][-1]:
+                    if self._reset:
+                        self._reset = False
+                        local_planner.reset()
+                    if Blackboard().get("{}_speed".format(actor.attributes['role_name'])) is not None:
+                        new_target_speed = float(Blackboard().get("{}_speed".format(actor.attributes['role_name'])))
+                        if new_target_speed != self._target_speed:
+                            self._target_speed = new_target_speed
+                            local_planner.set_speed(self._target_speed)
+                    control = local_planner.run_step(debug=False)
+                    if self._avoid_collision and detect_lane_obstacle(actor):
+                        control.throttle = 0.0
+                        control.brake = 1.0
+                    actor.apply_control(control)
 
         return new_status
 
