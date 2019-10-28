@@ -334,14 +334,28 @@ class OpenScenarioParser(object):
                 private_action = private_action.find('Longitudinal')
                 if private_action.find('Speed') is not None:
                     long_maneuver = private_action.find('Speed')
-                    target_speed = float(long_maneuver.find("Target").find("Absolute").attrib.get('value', 0))
-                    distance = float(long_maneuver.find("Dynamics").attrib.get('distance', float("inf")))
-                    duration = float(long_maneuver.find("Dynamics").attrib.get('time', float("inf")))
-                    atomic = KeepVelocity(actor,
-                                          target_speed,
-                                          distance=distance,
-                                          duration=duration,
-                                          name=maneuver_name)
+                    if long_maneuver.find("Target").find("Absolute") is not None:
+                        target_speed = float(long_maneuver.find("Target").find("Absolute").attrib.get('value', 0))
+                        distance = float(long_maneuver.find("Dynamics").attrib.get('distance', float("inf")))
+                        duration = float(long_maneuver.find("Dynamics").attrib.get('time', float("inf")))
+                        atomic = KeepVelocity(actor,
+                                            target_speed,
+                                            distance=distance,
+                                            duration=duration,
+                                            name=maneuver_name)
+                    elif long_maneuver.find("Target").find("Relative") is not None:
+                        relative_maneuver = long_maneuver.find("Target").find("Relative")
+                        target_object = relative_maneuver.attrib.get('object')
+                        value = float(relative_maneuver.attrib.get('value'))
+                        value_type = relative_maneuver.attrib.get('valueType')
+                        continuous = relative_maneuver.attrib.get('continuous') in ['true','1']
+                        atomic = KeepRelativeVelocity(actor,
+                                            target_object=target_object,
+                                            value=value,
+                                            value_type=value_type,
+                                            continuous=continuous,
+                                            name=maneuver_name)
+
                 elif private_action.find('Distance') is not None:
                     raise NotImplementedError("Longitudinal distance actions are not yet supported")
                 else:

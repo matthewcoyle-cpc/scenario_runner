@@ -304,6 +304,56 @@ class KeepVelocity(AtomicBehavior):
         """
         super(KeepVelocity, self).terminate(new_status)
 
+class KeepRelativeVelocity(AtomicBehavior):
+    def __init__(self, actor, target_object, value, value_type, continuous, name="KeepRelativeVelocity"):
+        super(KeepRelativeVelocity, self).__init__(name)
+        self.logger.debug("%s.__init__()" % (self.__class__.__name__))
+        self._actor = actor
+
+        self._control, self._type = get_actor_control(actor)
+        self._map = self._actor.get_world().get_map()
+        self._waypoint = self._map.get_waypoint(self._actor.get_location())
+
+        self._target_object = target_object
+        self._value = value
+        self._value_type = value_type
+        self._continuous = continuous
+
+    def initialise(self):
+        super(KeepRelativeVelocity, self).initialise()
+
+    def update(self):
+        new_status = py_trees.common.Status.RUNNING
+        
+        def speed_function():
+            try:
+                speed = Blackboard().get("{}_speed".format(self._target_object))
+            except:
+                speed = 0
+                
+            try:
+                speed = float(speed)
+            except:
+                speed = float(speed())
+            if self._value_type == "delta":
+                speed = speed + self._value
+            elif self._value_type == "factor":
+                speed = speed * self._value
+            return speed
+
+        if self._continuous:
+            Blackboard().set("{}_speed".format(self._actor.attributes['role_name']), speed_function)
+        else:
+            Blackboard().set("{}_speed".format(self._actor.attributes['role_name']), speed_function())
+
+        new_status = py_trees.common.Status.SUCCESS
+
+        self.logger.debug("%s.update()[%s->%s]" % (self.__class__.__name__, self.status, new_status))
+
+        return new_status
+
+    def terminate(self, new_status):
+        super(KeepRelativeVelocity, self).terminate(new_status)
 
 class ChangeAutoPilot(AtomicBehavior):
 
@@ -886,7 +936,12 @@ class LaneKeeper(WaypointFollower):
                         self._reset = False
                         local_planner.reset()
                     if Blackboard().get("{}_speed".format(actor.attributes['role_name'])) is not None:
-                        new_target_speed = float(Blackboard().get("{}_speed".format(actor.attributes['role_name'])))
+                        new_target_speed = Blackboard().get("{}_speed".format(actor.attributes['role_name']))
+                        try:
+                            speed = float(new_target_speed)
+                        except:
+                            speed = float(new_target_speed())
+                        new_target_speed = speed
                         if new_target_speed != self._target_speed:
                             self._target_speed = new_target_speed
                             local_planner.set_speed(self._target_speed)
