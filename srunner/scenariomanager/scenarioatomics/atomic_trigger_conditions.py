@@ -26,7 +26,7 @@ import py_trees
 from agents.navigation.basic_agent import *
 from agents.navigation.roaming_agent import *
 
-from srunner.scenariomanager.scenarioatomics.atomic_behaviors import AtomicBehavior, calculate_distance
+from srunner.scenariomanager.scenarioatomics.atomic_behaviors import AtomicBehavior, calculate_distance, calculate_lateral_distance, calculate_longitudinal_distance
 from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
 from srunner.scenariomanager.timer import GameTime
 from srunner.tools.scenario_helper import get_distance_along_route
@@ -275,7 +275,7 @@ class InTriggerDistanceToVehicle(AtomicBehavior):
     The condition terminates with SUCCESS, when the actor reached the target distance to the other actor
     """
 
-    def __init__(self, other_actor, actor, distance, comparison_operator=operator.lt, name="TriggerDistanceToVehicle"):
+    def __init__(self, other_actor, actor, distance, comparison_operator=operator.lt, distance_type="inertial", name="TriggerDistanceToVehicle"):
         """
         Setup trigger distance
         """
@@ -285,6 +285,7 @@ class InTriggerDistanceToVehicle(AtomicBehavior):
         self._actor = actor
         self._distance = distance
         self._comparison_operator = comparison_operator
+        self._type = distance_type
 
     def update(self):
         """
@@ -298,7 +299,13 @@ class InTriggerDistanceToVehicle(AtomicBehavior):
         if ego_location is None or other_location is None:
             return new_status
 
-        if self._comparison_operator(calculate_distance(ego_location, other_location), self._distance):
+        distance_funtion_dict = {
+            "inertial" : calculate_distance,
+            "lateral" : calculate_lateral_distance,
+            "longitudinal" : calculate_longitudinal_distance
+        }
+
+        if self._comparison_operator(distance_funtion_dict[self._type](ego_location, other_location), self._distance):
             new_status = py_trees.common.Status.SUCCESS
 
         self.logger.debug("%s.update()[%s->%s]" % (self.__class__.__name__, self.status, new_status))

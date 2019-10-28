@@ -223,23 +223,20 @@ class OpenScenarioParser(object):
                 elif entity_condition.find('RelativeDistance') is not None:
                     distance_condition = entity_condition.find('RelativeDistance')
                     distance_value = float(distance_condition.attrib.get('value'))
-                    if distance_condition.attrib.get('type') == "inertial":
-                        for actor in actor_list:
-                            if distance_condition.attrib.get('entity', None) == actor.attributes['role_name']:
-                                triggered_actor = actor
-                                break
+                    distance_type = distance_condition.attrib.get('type')
+                    for actor in actor_list:
+                        if distance_condition.attrib.get('entity', None) == actor.attributes['role_name']:
+                            triggered_actor = actor
+                            break
 
-                        if triggered_actor is None:
-                            raise AttributeError("Cannot find actor '{}' for condition".format(
-                                distance_condition.attrib.get('entity', None)))
+                    if triggered_actor is None:
+                        raise AttributeError("Cannot find actor '{}' for condition".format(
+                            distance_condition.attrib.get('entity', None)))
 
-                        condition_rule = distance_condition.attrib.get('rule')
-                        condition_operator = OpenScenarioParser.operators[condition_rule]
-                        atomic = InTriggerDistanceToVehicle(
-                            triggered_actor, trigger_actor, distance_value, condition_operator, name=condition_name)
-                    else:
-                        raise NotImplementedError(
-                            "RelativeDistance condition with the given specification is not yet supported")
+                    condition_rule = distance_condition.attrib.get('rule')
+                    condition_operator = OpenScenarioParser.operators[condition_rule]
+                    atomic = InTriggerDistanceToVehicle(
+                        triggered_actor, trigger_actor, distance_value, condition_operator, distance_type, name=condition_name)
 
         elif condition.find('ByState') is not None:
             state_condition = condition.find('ByState')

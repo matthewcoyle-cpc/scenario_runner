@@ -46,6 +46,17 @@ def calculate_distance(location, other_location):
     """
     return location.distance(other_location)
 
+def calculate_lateral_distance(location, other_location):
+    """
+    Method to calculate the lateral distance between to locations
+    """
+    return abs(location.x - other_location.x)
+
+def calculate_longitudinal_distance(location, other_location):
+    """
+    Method to calculate the longitudinal distance between to locations
+    """
+    return abs(location.y - other_location.y)
 
 def get_actor_control(actor):
     """
