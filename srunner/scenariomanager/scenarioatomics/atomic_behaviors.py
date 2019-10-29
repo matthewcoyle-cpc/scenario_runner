@@ -1143,6 +1143,8 @@ class ActorTransformSetter(AtomicBehavior):
             if self._physics:
                 self._actor.set_simulate_physics(enabled=True)
             new_status = py_trees.common.Status.SUCCESS
+            if self._actor.attributes['role_name'] in WaypointFollower.waypointfollow_dict:
+                WaypointFollower.waypointfollow_dict[self._actor.attributes['role_name']][-1]._reset = True
 
         return new_status
 
