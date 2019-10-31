@@ -475,9 +475,12 @@ class CarlaActorPool(object):
             blueprint = random.choice(blueprint_library.filter(model))
         except:
             blueprint = random.choice(blueprint_library.filter("vehicle"))
-        if color:
-            blueprint.set_attribute('color', color)
-
+        try:
+            if color:
+                blueprint.set_attribute('color', color)
+        except:
+            pass
+            #Color can't be set for this vehicle
         # is it a pedestrian? -> make it mortal
         if blueprint.has_attribute('is_invincible'):
             blueprint.set_attribute('is_invincible', 'false')

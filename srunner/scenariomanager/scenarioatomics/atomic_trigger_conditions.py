@@ -158,10 +158,12 @@ class AtStartCondition(AtomicBehavior):
         new_status = py_trees.common.Status.RUNNING
 
         blackboard_variable_name = "({}){}-{}".format(self._element_type.upper(), self._element_name, "START")
-        element_start_time = self._blackboard.get(blackboard_variable_name)
-        if element_start_time and element_start_time >= self._start_time:
-            new_status = py_trees.common.Status.SUCCESS
-
+        try:
+            element_start_time = self._blackboard.get(blackboard_variable_name)
+            if element_start_time and element_start_time >= self._start_time:
+                new_status = py_trees.common.Status.SUCCESS
+        except KeyError:
+            pass
         self.logger.debug("%s.update()[%s->%s]" % (self.__class__.__name__, self.status, new_status))
 
         return new_status
@@ -204,9 +206,12 @@ class AfterTerminationCondition(AtomicBehavior):
         for rule in rules:
             if new_status == py_trees.common.Status.RUNNING:
                 blackboard_variable_name = "({}){}-{}".format(self._element_type, self._element_name, rule)
-                element_start_time = self._blackboard.get(blackboard_variable_name)
-                if element_start_time and element_start_time >= self._start_time:
-                    new_status = py_trees.common.Status.SUCCESS
+                try:
+                    element_start_time = self._blackboard.get(blackboard_variable_name)
+                    if element_start_time and element_start_time >= self._start_time:
+                        new_status = py_trees.common.Status.SUCCESS
+                except KeyError:
+                    pass
 
         self.logger.debug("%s.update()[%s->%s]" % (self.__class__.__name__, self.status, new_status))
 

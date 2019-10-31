@@ -824,12 +824,13 @@ class WaypointFollower(AtomicBehavior):
         self._reset=False
 
     def deregister(self, actor):
-        if self in WaypointFollower.waypointfollow_dict[actor.attributes['role_name']]:
-            WaypointFollower.waypointfollow_dict[actor.attributes['role_name']].remove(self)
-        if len(WaypointFollower.waypointfollow_dict[actor.attributes['role_name']]) == 0:
-            WaypointFollower.waypointfollow_dict.remove(actor.attributes['role_name'])
-        else:
-            WaypointFollower.waypointfollow_dict[actor.attributes['role_name']][-1]._reset=True
+        if actor.attributes['role_name'] in WaypointFollower.waypointfollow_dict:
+            if self in WaypointFollower.waypointfollow_dict[actor.attributes['role_name']]:
+                WaypointFollower.waypointfollow_dict[actor.attributes['role_name']].remove(self)
+            if len(WaypointFollower.waypointfollow_dict[actor.attributes['role_name']]) == 0:
+                WaypointFollower.waypointfollow_dict.pop(actor.attributes['role_name'], None)
+            else:
+                WaypointFollower.waypointfollow_dict[actor.attributes['role_name']][-1]._reset=True
         
     def initialise(self):
         """
