@@ -70,7 +70,7 @@ def oneshot_behavior(name, variable_name, behaviour):
     This is taken from py_trees.idiom.oneshot.
     """
     subtree_root = py_trees.composites.Selector(name=name)
-    check_flag = py_trees.blackboard.CheckBlackboardVariable(
+    check_flag = py_trees.behaviours.CheckBlackboardVariableValue(
         name=variable_name + " Done?",
         variable_name=variable_name,
         expected_value=True,
@@ -526,12 +526,12 @@ class RouteScenario(BasicScenario):
         Basic behavior do nothing, i.e. Idle
         """
 
-        behavior = py_trees.composites.Parallel(policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
+        behavior = py_trees.composites.Parallel(policy=py_trees.common.ParallelPolicy.SuccessOnOne())
 
         behavior.add_child(self.master_scenario.scenario.behavior)
 
         subbehavior = py_trees.composites.Parallel(name="Behavior",
-                                                   policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ALL)
+                                                   policy=py_trees.common.ParallelPolicy.SuccessOnAll())
 
         for scenario in self.list_scenarios:
             if scenario.scenario.behavior is not None and scenario.scenario.behavior.name != "MasterScenario":
@@ -551,7 +551,7 @@ class RouteScenario(BasicScenario):
         """
 
         test_criteria = py_trees.composites.Parallel(
-            name="Test Criteria", policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
+            name="Test Criteria", policy=py_trees.common.ParallelPolicy.SuccessOnOne())
 
         for scenario in self.list_scenarios:
             if scenario.scenario.test_criteria is not None:

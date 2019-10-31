@@ -96,7 +96,7 @@ class StationaryObjectCrossing(BasicScenario):
 
         # non leaf nodes
         root = py_trees.composites.Parallel(
-            policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
+            policy=py_trees.common.ParallelPolicy.SuccessOnOne())
         scenario_sequence = py_trees.composites.Sequence()
 
         # building tree
@@ -298,7 +298,7 @@ class DynamicObjectCrossing(BasicScenario):
         """
 
         root = py_trees.composites.Parallel(
-            policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE, name="OccludedObjectCrossing")
+            policy=py_trees.common.ParallelPolicy.SuccessOnOne(), name="OccludedObjectCrossing")
         lane_width = self._reference_waypoint.lane_width
         lane_width = lane_width + (1.25 * lane_width * self._num_lane_changes)
         # leaf nodes
@@ -343,9 +343,9 @@ class DynamicObjectCrossing(BasicScenario):
 
         scenario_sequence = py_trees.composites.Sequence()
         keep_velocity_other = py_trees.composites.Parallel(
-            policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE, name="keep velocity other")
+            policy=py_trees.common.ParallelPolicy.SuccessOnOne(), name="keep velocity other")
         keep_velocity = py_trees.composites.Parallel(
-            policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE, name="keep velocity")
+            policy=py_trees.common.ParallelPolicy.SuccessOnOne(), name="keep velocity")
 
         # building tree
 

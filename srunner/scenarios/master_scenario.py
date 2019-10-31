@@ -96,7 +96,7 @@ class MasterScenario(BasicScenario):
         stop_criterion = RunningStopTest(self.ego_vehicles[0])
 
         parallel_criteria = py_trees.composites.Parallel("group_criteria",
-                                                         policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
+                                                         policy=py_trees.common.ParallelPolicy.SuccessOnOne())
 
         parallel_criteria.add_child(completion_criterion)
         parallel_criteria.add_child(collision_criterion)

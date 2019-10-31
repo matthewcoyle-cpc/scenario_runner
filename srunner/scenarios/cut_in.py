@@ -108,7 +108,7 @@ class CutIn(BasicScenario):
         # just_drive
         just_drive = py_trees.composites.Parallel(
             "DrivingStraight",
-                policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
+                policy=py_trees.common.ParallelPolicy.SuccessOnOne())
 
         car_driving = WaypointFollower(self.other_actors[0], self._velocity)
         just_drive.add_child(car_driving)
@@ -137,7 +137,7 @@ class CutIn(BasicScenario):
         endcondition = DriveDistance(self.other_actors[0], 200)
 
         # build tree
-        root = py_trees.composites.Sequence("Behavior", policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
+        root = py_trees.composites.Sequence("Behavior", policy=py_trees.common.ParallelPolicy.SuccessOnOne())
         root.add_child(behaviour)
         root.add_child(endcondition)
         return root

@@ -62,7 +62,7 @@ class Scenario(object):
         self.timeout_node = TimeOut(self.timeout, name="TimeOut")
 
         # Create overall py_tree
-        self.scenario_tree = py_trees.composites.Parallel(name, policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
+        self.scenario_tree = py_trees.composites.Parallel(name, policy=py_trees.common.ParallelPolicy.SuccessOnOne())
         if behavior is not None:
             self.scenario_tree.add_child(self.behavior)
         self.scenario_tree.add_child(self.timeout_node)

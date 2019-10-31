@@ -114,13 +114,12 @@ def oneshot_behavior(behaviour, name=None):
         name = behaviour.name
     variable_name = get_py_tree_path(behaviour)
     subtree_root = py_trees.composites.Selector(name=name)
-    check_flag = py_trees.blackboard.CheckBlackboardVariable(
+    check_flag = py_trees.behaviours.CheckBlackboardVariableValue(
         name=variable_name + " Done?",
         variable_name=variable_name,
-        expected_value=True,
-        clearing_policy=py_trees.common.ClearingPolicy.ON_INITIALISE
+        expected_value=True
     )
-    set_flag = py_trees.blackboard.SetBlackboardVariable(
+    set_flag = py_trees.behaviours.SetBlackboardVariable(
         name="Mark Done",
         variable_name=variable_name,
         variable_value=True
@@ -212,10 +211,9 @@ class StoryElementStatusToBlackboard(Decorator):
         Record the elements's start time on the blackboard
         """
         self.blackboard.set(
-            name="({}){}-{}".format(self.story_element_type.upper(),
+            variable_name="({}){}-{}".format(self.story_element_type.upper(),
                                     self.element_name, "START"),
-            value=GameTime.get_time(),
-            overwrite=True
+            value=GameTime.get_time()
         )
 
     def update(self):
@@ -231,7 +229,7 @@ class StoryElementStatusToBlackboard(Decorator):
         """
         # Report whether we ended with End or Cancel
         # If we were ended or cancelled, our state will be INVALID and
-        # We will have an ancestor (a parallel SUCCESS_ON_ALL) with a successful child/children
+        # We will have an ancestor (a parallel SuccessOnAll()) with a successful child/children
         # It's possible we ENDed AND CANCELled if both condition groups were true simultaneously
         # NOTE 'py_trees.common.Status.INVALID' is the status of a behaviur which was terminated by a parent
         rules = []
@@ -259,10 +257,9 @@ class StoryElementStatusToBlackboard(Decorator):
 
         for rule in rules:
             self.blackboard.set(
-                name="({}){}-{}".format(self.story_element_type.upper(),
+                variable_name="({}){}-{}".format(self.story_element_type.upper(),
                                         self.element_name, rule),
-                value=GameTime.get_time(),
-                overwrite=True
+                value=GameTime.get_time()
             )
 
 
@@ -310,15 +307,8 @@ class OpenScenario(BasicScenario):
         """
         Basic behavior do nothing, i.e. Idle
         """
-
-        story_behavior = py_trees.composites.Parallel(
-            policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ALL, name="Story")
-
-
+        story_behaviour_children = []
         joint_actor_list = self.other_actors + self.ego_vehicles
-
-        for actor in joint_actor_list:
-            story_behavior.add_child(LaneKeeper(actor))
 
         for act in self.config.story.iter("Act"):
 
@@ -326,13 +316,13 @@ class OpenScenario(BasicScenario):
                 name="Act StartConditions and behaviours")
 
             start_conditions = py_trees.composites.Parallel(
-                policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE, name="StartConditions Group")
+                policy=py_trees.common.ParallelPolicy.SuccessOnOne(), name="StartConditions Group")
 
             parallel_behavior = py_trees.composites.Parallel(
-                policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE, name="Maneuver + EndConditions Group")
+                policy=py_trees.common.ParallelPolicy.SuccessOnOne(), name="Maneuver + EndConditions Group")
 
             parallel_sequences = py_trees.composites.Parallel(
-                policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ALL, name="Maneuvers")
+                policy=py_trees.common.ParallelPolicy.SuccessOnAll(), name="Maneuvers")
 
             for sequence in act.iter("Sequence"):
                 sequence_behavior = py_trees.composites.Sequence(name="{}_iterations".format(sequence.attrib.get('name')))
@@ -346,16 +336,16 @@ class OpenScenario(BasicScenario):
                                 break
 
                 single_sequence_iteration = py_trees.composites.Parallel(
-                    policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ALL, name=sequence.attrib.get('name'))
+                    policy=py_trees.common.ParallelPolicy.SuccessOnAll(), name=sequence.attrib.get('name'))
                 for maneuver in sequence.iter("Maneuver"):
                     maneuver_parallel = py_trees.composites.Parallel(
-                        policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ALL,
+                        policy=py_trees.common.ParallelPolicy.SuccessOnAll(),
                         name="Maneuver " + maneuver.attrib.get('name'))
                     for event in maneuver.iter("Event"):
                         event_sequence = py_trees.composites.Sequence(
                             name="Event " + event.attrib.get('name'))
                         parallel_actions = py_trees.composites.Parallel(
-                            policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ALL, name="Actions")
+                            policy=py_trees.common.ParallelPolicy.SuccessOnAll(), name="Actions")
                         for child in event.iter():
                             if child.tag == "Action":
                                 for actor_id in actor_ids:
@@ -423,23 +413,31 @@ class OpenScenario(BasicScenario):
                 act_sequence.add_child(parallel_behavior)
 
             if act_sequence.children:
-                story_behavior.add_child(act_sequence)
+                story_behaviour_children.append(act_sequence)
 
         # Build behavior tree
         # sequence.add_child(maneuver_behavior)
+        story_behavior = py_trees.composites.Parallel(
+            policy=py_trees.common.ParallelPolicy.SuccessOnSelected(children=story_behaviour_children), name="Story")
 
+
+        for actor in joint_actor_list:
+            story_behavior.add_child(LaneKeeper(actor))
+
+        for child in story_behaviour_children:
+            story_behavior.add_child(child)
         return story_behavior
 
     def _create_condition_container(self, node, name='Conditions Group', oneshot=False):
         """
         This is a generic function to handle conditions utilising ConditionGroups
         Each ConditionGroup is represented as a Sequence of Conditions
-        The ConditionGroups are grouped under a SUCCESS_ON_ONE Parallel
+        The ConditionGroups are grouped under a SuccessOnOne Parallel
         If oneshot is set to True, oneshot_behaviour will be applied to conditions
         """
 
         parallel_condition_groups = py_trees.composites.Parallel(name,
-                                                                 policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
+                                                                 policy=py_trees.common.ParallelPolicy.SuccessOnOne())
 
         for condition_group in node.iter("ConditionGroup"):
             condition_group_sequence = py_trees.composites.Sequence(
@@ -462,7 +460,7 @@ class OpenScenario(BasicScenario):
         in parallel behavior tree.
         """
         parallel_criteria = py_trees.composites.Parallel("EndConditions (Criteria Group)",
-                                                         policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
+                                                         policy=py_trees.common.ParallelPolicy.SuccessOnOne())
 
         criteria = []
         for endcondition in self.config.storyboard.iter("EndConditions"):
@@ -477,7 +475,7 @@ class OpenScenario(BasicScenario):
                 condition, self.ego_vehicles)
             parallel_criteria.add_child(criterion)
 
-        return parallel_criteria
+        return parallel_criteria if criteria else None
 
     def __del__(self):
         """
