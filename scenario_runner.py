@@ -209,7 +209,8 @@ class ScenarioRunner(object):
                                                                     vehicle.transform,
                                                                     vehicle.rolename,
                                                                     True,
-                                                                    color=vehicle.color)
+                                                                    color=vehicle.color,
+                                                                    vehicle_category=vehicle.category)
                 self.ego_vehicles.append(ego_vehicle)     
                 Blackboard().set("{}_speed".format(ego_vehicle.attributes['role_name']), vehicle.initial_speed)
         else:

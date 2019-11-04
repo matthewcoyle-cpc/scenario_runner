@@ -167,6 +167,7 @@ class OpenScenarioConfiguration(ScenarioConfiguration):
                 for vehicle in obj.iter("Vehicle"):
                     color=None
                     model = vehicle.attrib.get('name', "vehicle.*")
+                    category = vehicle.attrib.get('category', "car")
                     ego_vehicle = False
                     for prop in obj.iter("Property"):
                         if prop.get('name', '') == 'type':
@@ -174,7 +175,7 @@ class OpenScenarioConfiguration(ScenarioConfiguration):
                         if prop.get('name', '') == 'color':
                             color = prop.get('value')
 
-                    new_actor = ActorConfigurationData(model, carla.Transform(), rolename, color=color)
+                    new_actor = ActorConfigurationData(model, carla.Transform(), rolename, color=color, category=category)
                     new_actor.transform = self._get_actor_transform(rolename)
                     new_actor.initial_speed = self._get_actor_initial_speed(new_actor, rolename)
 

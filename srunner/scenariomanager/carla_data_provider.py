@@ -56,6 +56,46 @@ class CarlaDataProvider(object):
     _sync_flag = False
     _ego_vehicle_route = None
 
+    vehicle_blueprint_categories = {
+        'car': [
+            'vehicle.audi.a2', 
+            'vehicle.audi.tt',
+            'vehicle.citroen.c3',
+            'vehicle.dodge_charger.police',
+            'vehicle.jeep.wrangler_rubicon',
+            'vehicle.tesla.model3', 
+            'vehicle.nissan.patrol',
+            'vehicle.ford.mustang',
+            'vehicle.audi.etron',
+            'vehicle.mercedes-benz.coupe',
+            'vehicle.bmw.grandtourer',
+            'vehicle.toyota.prius',
+            'vehicle.seat.leon', 
+            'vehicle.lincoln.mkz2017', 
+            'vehicle.nissan.micra',
+            'vehicle.chevrolet.impala', 
+            'vehicle.mini.cooperst'],
+        'van': [
+            'vehicle.carlamotors.carlacola', 
+            'vehicle.volkswagen.t2'],
+        'truck': [
+            'vehicle.carlamotors.carlacola'], 
+        'trailer' : [],
+        'semitrailer': [],
+        'bus': [
+            'vehicle.volkswagen.t2'],
+        'motorbike': [
+            'vehicle.yamaha.yzf',
+            'vehicle.harley-davidson.low rider',
+            'vehicle.kawasaki.ninja'] ,
+        'bicycle' : [
+            'vehicle.diamondback.century', 
+            'vehicle.gazelle.omafiets', 
+            'vehicle.bh.crossbike'] ,
+        'train':[],
+        'tram':[],
+    }
+
     @staticmethod
     def register_actor(actor):
         """
@@ -462,7 +502,7 @@ class CarlaActorPool(object):
         CarlaActorPool._spawn_index = 0
 
     @staticmethod
-    def setup_actor(model, spawn_point, rolename='scenario', hero=False, autopilot=False, random_location=False, color=None):
+    def setup_actor(model, spawn_point, rolename='scenario', hero=False, autopilot=False, random_location=False, color=None, vehicle_category="car"):
         """
         Function to setup the most relevant actor parameters,
         incl. spawn point and vehicle model.
@@ -474,7 +514,10 @@ class CarlaActorPool(object):
         try:
             blueprint = random.choice(blueprint_library.filter(model))
         except:
-            blueprint = random.choice(blueprint_library.filter("vehicle"))
+            filter = "vehicle"
+            if CarlaDataProvider.vehicle_blueprint_categories[vehicle_category]:
+                filter = random.choice(CarlaDataProvider.vehicle_blueprint_categories[vehicle_category])
+            blueprint = random.choice(blueprint_library.filter(filter))
         try:
             if color:
                 blueprint.set_attribute('color', color)
@@ -607,12 +650,12 @@ class CarlaActorPool(object):
         return actors
 
     @staticmethod
-    def request_new_actor(model, spawn_point, rolename='scenario', hero=False, autopilot=False, random_location=False, color=None):
+    def request_new_actor(model, spawn_point, rolename='scenario', hero=False, autopilot=False, random_location=False, color=None, vehicle_category=None):
         """
         This method tries to create a new actor. If this was
         successful, the new actor is returned, None otherwise.
         """
-        actor = CarlaActorPool.setup_actor(model, spawn_point, rolename, hero, autopilot, random_location, color)
+        actor = CarlaActorPool.setup_actor(model, spawn_point, rolename, hero, autopilot, random_location, color, vehicle_category)
 
         if actor is None:
             return None
