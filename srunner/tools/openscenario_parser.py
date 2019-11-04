@@ -367,7 +367,6 @@ class OpenScenarioParser(object):
                     target_lane_rel = float(lat_maneuver.find("Target").find("Relative").attrib.get('value', 0))
                     distance = float(lat_maneuver.find("Dynamics").attrib.get('distance', 20))
                     atomic = LaneChange(actor,
-                                        5.0,
                                         direction="left" if target_lane_rel < 0 else "right",
                                         distance_same_lane=distance,
                                         name=maneuver_name)

@@ -72,6 +72,16 @@ def get_actor_control(actor):
 
     return control, actor_type
 
+def get_actor_speed_from_blackboard(actor):
+    speed = None
+    if Blackboard().get("{}_speed".format(actor.attributes['role_name'])) is not None:
+        speed = Blackboard().get("{}_speed".format(actor.attributes['role_name']))
+        try:
+            speed = float(speed)
+        except:
+            speed = float(speed())
+        speed = speed * 3.6
+    return speed    
 
 class AtomicBehavior(py_trees.behaviour.Behaviour):
 
@@ -847,9 +857,9 @@ class WaypointFollower(AtomicBehavior):
     def _apply_local_planner(self, actor):
 
         if self._target_speed is None:
-            self._target_speed = CarlaDataProvider.get_velocity(actor) * 3.6
+            self._target_speed = CarlaDataProvider.get_velocity(actor)
         else:
-            self._target_speed = self._target_speed * 3.6
+            self._target_speed = self._target_speed
 
         local_planner = LocalPlanner(  # pylint: disable=undefined-variable
             actor, opt_dict={
@@ -876,7 +886,7 @@ class WaypointFollower(AtomicBehavior):
         for actor, local_planner in zip(self._actor_list, self._local_planner_list):
             if actor is not None and actor.is_alive and local_planner is not None:
                 if self == WaypointFollower.waypointfollow_dict[actor.attributes['role_name']][-1]:
-                    control = local_planner.run_step(debug=False)
+                    control = local_planner.run_step()
                     if self._avoid_collision and detect_lane_obstacle(actor):
                         control.throttle = 0.0
                         control.brake = 1.0
@@ -936,17 +946,11 @@ class LaneKeeper(WaypointFollower):
                     if self._reset:
                         self._reset = False
                         local_planner.reset()
-                    if Blackboard().get("{}_speed".format(actor.attributes['role_name'])) is not None:
-                        new_target_speed = Blackboard().get("{}_speed".format(actor.attributes['role_name']))
-                        try:
-                            speed = float(new_target_speed)
-                        except:
-                            speed = float(new_target_speed())
-                        new_target_speed = speed
-                        if new_target_speed != self._target_speed:
-                            self._target_speed = new_target_speed
-                            local_planner.set_speed(self._target_speed)
-                    control = local_planner.run_step(debug=False)
+                    new_target_speed = get_actor_speed_from_blackboard(actor)
+                    if new_target_speed and new_target_speed != self._target_speed:
+                        self._target_speed = new_target_speed
+                        local_planner.set_speed(self._target_speed)
+                    control = local_planner.run_step()
                     if self._avoid_collision and detect_lane_obstacle(actor):
                         control.throttle = 0.0
                         control.brake = 1.0
@@ -979,7 +983,7 @@ class LaneChange(WaypointFollower):
 
     """
 
-    def __init__(self, actor, speed=10, direction='left',
+    def __init__(self, actor, speed=None, direction='left',
                  distance_same_lane=5, distance_other_lane=100, name='LaneChange'):
 
         self._actor = actor
@@ -990,6 +994,12 @@ class LaneChange(WaypointFollower):
         self._target_lane_id = None
         self._distance_new_lane = 0
         self._pos_before_lane_change = None
+
+        blackboard_speed = get_actor_speed_from_blackboard(actor)
+        if blackboard_speed and not speed:
+            self.speed = blackboard_speed
+        elif not speed:
+            speed = 10
 
         super(LaneChange, self).__init__(actor, target_speed=speed, name=name)
 
