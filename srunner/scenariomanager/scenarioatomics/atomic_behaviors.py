@@ -997,7 +997,7 @@ class LaneChange(WaypointFollower):
 
         blackboard_speed = get_actor_speed_from_blackboard(actor)
         if blackboard_speed and not speed:
-            self.speed = blackboard_speed
+            speed = blackboard_speed
         elif not speed:
             speed = 10
 
