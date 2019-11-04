@@ -415,11 +415,19 @@ class OpenScenario(BasicScenario):
             if act_sequence.children:
                 story_behaviour_children.append(act_sequence)
 
+
+        parallel_end_criteria = None
+        for end_condition in self.config.storyboard.iter("EndConditions"):
+            parallel_end_criteria = self._create_condition_container(
+                end_condition, "Storyboard EndConditions")
         # Build behavior tree
         # sequence.add_child(maneuver_behavior)
         story_behavior = py_trees.composites.Parallel(
-            policy=py_trees.common.ParallelPolicy.SuccessOnSelected(children=story_behaviour_children), name="Story")
+            policy=py_trees.common.ParallelPolicy.SuccessOnSelected(children=([parallel_end_criteria] if parallel_end_criteria.children else story_behaviour_children)), name="Story")
 
+
+        if parallel_end_criteria.children:
+            story_behavior.add_child(parallel_end_criteria)
 
         for actor in joint_actor_list:
             story_behavior.add_child(LaneKeeper(actor))
@@ -443,11 +451,12 @@ class OpenScenario(BasicScenario):
             condition_group_sequence = py_trees.composites.Sequence(
                 name="Condition Group")
             for condition in condition_group.iter("Condition"):
-                criterion = OpenScenarioParser.convert_condition_to_atomic(
-                    condition, self.other_actors + self.ego_vehicles)
-                if oneshot:
-                    criterion = oneshot_behavior(criterion)
-                condition_group_sequence.add_child(criterion)
+                if not condition.attrib.get('name').startswith('criteria_'):
+                    criterion = OpenScenarioParser.convert_condition_to_atomic(
+                        condition, self.other_actors + self.ego_vehicles)
+                    if oneshot:
+                        criterion = oneshot_behavior(criterion)
+                    condition_group_sequence.add_child(criterion)
 
             if condition_group_sequence.children:
                 parallel_condition_groups.add_child(condition_group_sequence)
