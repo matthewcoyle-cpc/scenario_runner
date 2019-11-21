@@ -84,6 +84,9 @@ class OpenScenarioConfiguration(ScenarioConfiguration):
         if self.name.startswith("CARLA:"):
             OpenScenarioParser.set_use_carla_coordinate_system()
 
+        if self.name.startswith("CARLA:"):
+            OpenScenarioParser.set_use_carla_coordinate_system()
+
     def _set_carla_town(self):
         """
         Extract the CARLA town (level) from the RoadNetwork information from OpenSCENARIO
@@ -165,7 +168,7 @@ class OpenScenarioConfiguration(ScenarioConfiguration):
             for obj in entity.iter("Object"):
                 rolename = obj.attrib.get('name', 'simulation')
                 for vehicle in obj.iter("Vehicle"):
-                    color=None
+                    color = None
                     model = vehicle.attrib.get('name', "vehicle.*")
                     category = vehicle.attrib.get('category', "car")
                     ego_vehicle = False
@@ -175,7 +178,8 @@ class OpenScenarioConfiguration(ScenarioConfiguration):
                         if prop.get('name', '') == 'color':
                             color = prop.get('value')
 
-                    new_actor = ActorConfigurationData(model, carla.Transform(), rolename, color=color, category=category)
+                    new_actor = ActorConfigurationData(
+                        model, carla.Transform(), rolename, color=color, category=category)
                     new_actor.transform = self._get_actor_transform(rolename)
                     new_actor.initial_speed = self._get_actor_initial_speed(new_actor, rolename)
 

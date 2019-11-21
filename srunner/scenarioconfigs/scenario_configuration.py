@@ -18,7 +18,8 @@ class ActorConfigurationData(object):
     This is a configuration base class to hold model and transform attributes
     """
 
-    def __init__(self, model, transform, rolename='other', autopilot=False, random=False, amount=1, color=None, category="car"):
+    def __init__(self, model, transform, rolename='other', autopilot=False,
+                 random=False, amount=1, color=None, category="car"):
         self.model = model
         self.rolename = rolename
         self.transform = transform
